@@ -27,21 +27,16 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.ssl.OpenSslEngine;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
-import org.littleshoot.proxy.ActivityTracker;
-import org.littleshoot.proxy.ChainedProxy;
-import org.littleshoot.proxy.ChainedProxyAdapter;
-import org.littleshoot.proxy.ChainedProxyManager;
-import org.littleshoot.proxy.FullFlowContext;
-import org.littleshoot.proxy.HttpFilters;
-import org.littleshoot.proxy.MitmManager;
-import org.littleshoot.proxy.TransportProtocol;
-import org.littleshoot.proxy.UnknownTransportProtocolException;
+import org.littleshoot.proxy.*;
+import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLProtocolException;
 import javax.net.ssl.SSLSession;
 import java.io.IOException;
@@ -583,6 +578,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
                         .then(clientConnection.RespondCONNECTSuccessful)
                         .then(clientConnection.StartTunneling);
             }
+        } else if(initialRequest.headers().contains("UseSSL")) {
+            SslEngineSource sslEngineSource = new SelfSignedSslEngineSource(true);
+            SSLEngine sslEngine = sslEngineSource.newSslEngine();
+            connectionFlow
+//                    .then(serverConnection.StartTunneling)
+                    .then(serverConnection.EncryptChannel(sslEngine));
         }
     }
 
