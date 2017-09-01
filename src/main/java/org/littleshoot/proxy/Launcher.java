@@ -1,12 +1,7 @@
 package org.littleshoot.proxy;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
-import org.apache.commons.cli.UnrecognizedOptionException;
+import io.netty.handler.codec.http.HttpRequest;
+import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.xml.DOMConfigurator;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
@@ -18,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
+import java.util.Queue;
 
 /**
  * Launches a new HTTP proxy.
@@ -91,7 +87,19 @@ public class Launcher {
         HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
                 .bootstrapFromFile("./littleproxy.properties")
                 .withPort(port)
-                .withAllowLocalOnly(false);
+                .withAllowLocalOnly(false)
+                .withChainProxyManager(new ChainedProxyManager() {
+                    @Override
+                    public void lookupChainedProxies(HttpRequest httpRequest, Queue<ChainedProxy> chainedProxies) {
+                        ChainedProxy chainedProxy = new ChainedProxyAdapter() {
+                            @Override
+                            public InetSocketAddress getChainedProxyAddress() {
+                                return new InetSocketAddress("181.215.45.23", 8085);
+                            }
+                        };
+                        chainedProxies.add(chainedProxy);
+                    }
+                });
 
         if (cmd.hasOption(OPTION_NIC)) {
             final String val = cmd.getOptionValue(OPTION_NIC);

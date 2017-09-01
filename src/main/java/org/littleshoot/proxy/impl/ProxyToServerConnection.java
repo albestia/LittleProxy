@@ -322,8 +322,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
                 return;
             }
 
-            LOG.debug("Using existing connection to: {}", remoteAddress);
-            doWrite(msg);
+            if (msg instanceof HttpRequest && ProxyUtils.isCONNECT((HttpRequest) msg)) {
+                LOG.debug("Omiting connect request on existing connection: {}", msg);
+            } else {
+                LOG.debug("Using existing connection to: {}", remoteAddress);
+                doWrite(msg);
+            }
         }
     };
 
@@ -500,15 +504,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     /**
      * Configures the connection to the upstream server and begins the {@link ConnectionFlow}.
      *
-     * @param initialRequest the current HTTP request being handled
+     * @param currentHttpRequest the current HTTP request being handled
      */
-    private void connectAndWrite(HttpRequest initialRequest) {
+    private void connectAndWrite(HttpRequest currentHttpRequest) {
         LOG.debug("Starting new connection to: {}", remoteAddress);
 
         // Remember our initial request so that we can write it after connecting
-        this.initialRequest = initialRequest;
         initializeConnectionFlow();
         connectionFlow.start();
+        write(currentHttpRequest);
     }
 
     /**
@@ -592,7 +596,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
             cb.handler(new ChannelInitializer<Channel>() {
                 protected void initChannel(Channel ch) throws Exception {
-                    initChannelPipeline(ch.pipeline(), initialRequest);
+                    initChannelPipeline(ch.pipeline());
                 };
             });
             cb.option(ChannelOption.CONNECT_TIMEOUT_MILLIS,
@@ -835,10 +839,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
      * {@link HttpObjectAggregator} in the {@link ChannelPipeline}.
      *
      * @param pipeline
-     * @param httpRequest
      */
-    private void initChannelPipeline(ChannelPipeline pipeline,
-            HttpRequest httpRequest) {
+    private void initChannelPipeline(ChannelPipeline pipeline) {
 
         if (trafficHandler != null) {
             pipeline.addLast("global-traffic-shaping", trafficHandler);
