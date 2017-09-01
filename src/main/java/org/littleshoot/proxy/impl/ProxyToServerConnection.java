@@ -283,6 +283,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     @Override
     void write(Object msg) {
         LOG.debug("Requested write of {}", msg);
+        if (msg == null) return;
 
         if (msg instanceof ReferenceCounted) {
             LOG.debug("Retaining reference counted message");
@@ -297,6 +298,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
                 clientConnection.encrypt(sslEngine, false);
                 clientConnection.setMitming(true);
             } else {
+                LOG.debug("Witbh the full new message, lookup the better proxy");
+                if (proxyServer.getChainProxyManager() != null) {
+                    availableChainedProxies.clear();
+                    proxyServer.getChainProxyManager().lookupChainedProxies((HttpRequest) msg, availableChainedProxies);
+                    chainedProxy = availableChainedProxies.poll();
+                }
                 LOG.debug("Currently disconnected, connect and then write the message");
                 connectAndWrite((HttpRequest) msg);
             }
@@ -530,6 +537,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
                     .newSslEngine()));
         }
 
+        if (ProxyUtils.isCONNECT(initialRequest)) {
             // If we're chaining, forward the CONNECT request
             if (hasUpstreamChainedProxy()) {
                 connectionFlow.then(
@@ -559,6 +567,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
                         .then(clientConnection.RespondCONNECTSuccessful)
                         .then(clientConnection.StartTunneling);
             }
+        }
     }
 
     /**
